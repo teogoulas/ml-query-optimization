@@ -238,22 +238,22 @@ class Database:
     def optimizer_cost(self, query, force_order=False):
         join_collapse_limit = "SET join_collapse_limit = "
         join_collapse_limit += "1" if force_order else "8"
-        query = join_collapse_limit + ";EXPLAIN (FORMAT JSON) " + query + ";"
+        query = join_collapse_limit + "; EXPLAIN (FORMAT JSON) " + query + ";"
         cursor = self.conn.cursor()
         cursor.execute(query)
         rows = cursor.fetchone()
         cursor.close()
-        return rows[0][0]["Plan"]["Total Cost"]
+        return rows[0][0]["Plan"]
 
     def explain_query(self, query, force_order=False):
         join_collapse_limit = "SET join_collapse_limit = "
         join_collapse_limit += "1" if force_order else "8"
-        query = join_collapse_limit + "; EXPLAIN (FORMAT JSON) " + query + ";"
+        explain_query = join_collapse_limit + "; EXPLAIN (FORMAT JSON) " + query + ";"
         cursor = self.conn.cursor()
-        cursor.execute(query)
+        cursor.execute(explain_query)
         rows = cursor.fetchall()
         cursor.close()
-        return rows
+        return rows[0][0][0]["Plan"]
 
     def is_number(self, s):
         try:
