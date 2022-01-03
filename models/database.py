@@ -14,7 +14,7 @@ class Database:
         self.aliases = {}
 
         if collect_db_info:
-            self.tables, self.relations, self.relations_attributes, self.relations_tables = (
+            self.tables, self.relations, self.relations_attributes, self.relations_tables, self.tables_attributes = (
                 self.get_relations_attributes()
             )
             self.attributes = []
@@ -87,7 +87,7 @@ class Database:
                         relations.append(r["name"])
                         relations_attributes[r["name"]] = tables_attributes[r["value"]]
                         relations_tables[r["name"]] = r["value"]
-        return tables, relations, relations_attributes, relations_tables
+        return tables, relations, relations_attributes, relations_tables, tables_attributes
 
     def print_relations_attrs(self):
         pp = pprint.PrettyPrinter(indent=2)

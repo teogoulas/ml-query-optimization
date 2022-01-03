@@ -6,6 +6,7 @@ class JoinType(Enum):
     HASH_JOIN = 1
     MERGE_JOIN = 2
     LOOP_JOIN = 3
+    AGGREGATE = 4
 
     def getType(self, type: str):
         if type == 'Hash Join':
