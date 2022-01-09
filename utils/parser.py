@@ -16,6 +16,8 @@ from utils.constants import AGGREGATE_FN_LIST
 
 module = importlib.import_module('utils')
 
+JOIN_COUNTER = 2
+
 
 def get_join_type(join_type: str):
     if join_type == 'Hash Join':
@@ -164,9 +166,10 @@ def print_tree(tokens: sqlparse.sql.TokenList, left=''):
                 print_tree(token.tokens, left=left + vertical_node)
 
 
-def handle_comparison(token: Token, tables_array: np.array, steps: list, tables: list, aliases: dict) -> (
-np.array, list):
+def handle_comparison(token: Token, tables_array: np.array, columns_array: np.array, steps: list, tables: list,
+                      aliases: dict, column_array_index: list) -> (np.array, np.array, list):
     for t in token.tokens:
+        global JOIN_COUNTER
         if isinstance(t, Comparison):
             if isinstance(t.left, Identifier) and isinstance(t.right, Identifier):
                 steps.append(InputNode(True, False, False, t.value, aliases[t.left.value.split('.')[0]],
@@ -175,21 +178,30 @@ np.array, list):
                     tables.index(aliases[t.right.value.split('.')[0]])] = 1
                 tables_array[tables.index(aliases[t.right.value.split('.')[0]])][
                     tables.index(aliases[t.left.value.split('.')[0]])] = 1
+                columns_array[column_array_index.index(
+                    aliases[t.left.value.split('.')[0]] + "_" + t.left.value.split('.')[1])] = JOIN_COUNTER
+                columns_array[column_array_index.index(
+                    aliases[t.right.value.split('.')[0]] + "_" + t.right.value.split('.')[1])] = JOIN_COUNTER
+                JOIN_COUNTER += 1
             elif isinstance(t.left, Identifier) and isinstance(t.right, Token):
                 steps.append(InputNode(False, True, False, t.value, aliases[t.left.value.split('.')[0]], '', tables))
                 tables_array[tables.index(aliases[t.left.value.split('.')[0]])][
                     tables.index(aliases[t.left.value.split('.')[0]])] = 1
+                columns_array[column_array_index.index(
+                    aliases[t.left.value.split('.')[0]] + "_" + t.left.value.split('.')[1])] = 1
         elif isinstance(t, Parenthesis):
-            tables_array, steps = handle_comparison(t, tables_array, steps, tables, aliases)
-    return tables_array, steps
+            tables_array, columns_array, steps =\
+                handle_comparison(t, tables_array, columns_array, steps, tables, aliases, column_array_index)
+    return tables_array, columns_array, steps
 
 
-def parse_sql_statement(tokens: sqlparse.sql.TokenList, tables: list) -> list:
+def parse_sql_statement(tokens: sqlparse.sql.TokenList, tables: list, column_array_index: list) -> list:
     aliases = {}
     steps = []
     select_statement = False
     from_statement = False
     tables_array = np.zeros(shape=(len(tables), len(tables)), dtype=int)
+    columns_array = np.zeros(len(column_array_index), dtype=int)
     for token in tokens:
         if isinstance(token, IdentifierList):
             if select_statement:
@@ -202,7 +214,8 @@ def parse_sql_statement(tokens: sqlparse.sql.TokenList, tables: list) -> list:
                         aliases[al[1].strip()] = al[0].strip()
         elif isinstance(token, Where):
             from_statement = False
-            handle_comparison(token, tables_array, steps, tables, aliases)
+            tables_array, columns_array, steps =\
+                handle_comparison(token, tables_array, columns_array, steps, tables, aliases, column_array_index)
         elif isinstance(token, Token):
             if token.value.lower() == "select":
                 select_statement = True
@@ -211,4 +224,4 @@ def parse_sql_statement(tokens: sqlparse.sql.TokenList, tables: list) -> list:
                 from_statement = True
             continue
 
-    return list(tables_array[np.triu_indices(len(tables))])
+    return list(np.concatenate([tables_array[np.triu_indices(len(tables))], columns_array]))

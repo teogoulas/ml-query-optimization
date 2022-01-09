@@ -147,17 +147,19 @@ class Database:
         ]
 
         # Yield all groups one by one
-        if target == "":
-            q = "SELECT * FROM queries ORDER BY relations_num"
-            cursor.execute(q)
+        # if target == "":
+        #     q = "SELECT * FROM queries ORDER BY relations_num"
+        #     cursor.execute(q)
 
         # Yield only one target group
-        else:
-            q = "SELECT * FROM queries WHERE relations_num=%s"
-            cursor.execute(q, (str(target),))
+        # else:
+        #     q = "SELECT * FROM queries WHERE relations_num=%s"
+        #     cursor.execute(q, (str(target),))
 
-        rows = cursor.fetchall()
-        cursor.close()
+        # rows = cursor.fetchall()
+        # cursor.close()
+
+        rows = []
 
         qs = {}
         for q in rows:

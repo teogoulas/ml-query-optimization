@@ -1,3 +1,4 @@
+from models.database import Database
 from models.join_type import JoinType
 from models.scan_type import ScanType
 
