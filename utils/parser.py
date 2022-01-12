@@ -9,6 +9,7 @@ from sqlparse.sql import Statement, TokenList, Identifier, Token, IdentifierList
 
 from models.database import Database
 from models.encoded_node import EncodedNode
+from models.job_query import JOBQuery
 from models.join_type import JoinType
 from models.json_node import InputNode
 from models.scan_type import ScanType
@@ -17,6 +18,53 @@ from utils.constants import AGGREGATE_FN_LIST
 module = importlib.import_module('utils')
 
 JOIN_COUNTER = 2
+
+
+def generate_input_text(predicates: dict, aliases: dict) -> str:
+    input_text = ''
+    for (pt, pv) in predicates:
+        lh, lha, rh, rha = pv
+        if pt == 'scan':
+            input_text += "{0} {1}.{2} " \
+                .format(pt, aliases[lh], lha)
+        elif pt == 'join':
+            input_text += "{0} {1}.{2}-{3}.{4} " \
+                .format(pt, aliases[lh], lha, aliases[rh], rha)
+    return input_text[:-1]
+
+
+def generate_output_text(json: dict, aliases: dict) -> str:
+    output_string = ''
+    if 'Plans' in json.keys():
+        output_string += (str(json['Join Type']).lower() + ' ' if 'Join Type' in json.keys() else '') + str(
+            json['Node Type']).lower() + ' '
+        for plan in json['Plans']:
+            output_string += generate_output_text(plan, aliases)
+    else:
+        if 'Index Cond' in json.keys():
+            output_string += str(json['Node Type']).lower()
+            if 'Relation Name' in json.keys():
+                output_string += " {0}".format(str(json['Relation Name']).lower())
+            index_cond = json['Index Cond']
+            if len(index_cond.split()) > 0:
+                output_string += ".{0}".format(str(json['Index Cond'].split()[0].replace("(", "")).lower())
+                predicates = index_cond.split("=")
+                if len(predicates) > 1:
+                    second_predicate = predicates[1].replace(" ", "").replace(")", "")
+                    cmp = second_predicate.split(".")
+                    if len(cmp) > 1 and aliases[cmp[0]] is not None:
+                        output_string += "-{0}.{1}".format(str(aliases[cmp[0]]).lower(), str(cmp[1]).lower())
+
+            output_string += " "
+        if 'Filter' in json.keys():
+            output_string += str(json['Node Type']).lower()
+            statement = re.sub("[^_0-9a-zA-Z]+", " ", json['Filter']).split()
+            if len(statement) > 0:
+                output_string += " table scan {0}".format(statement[0])
+
+            output_string += " "
+
+    return output_string
 
 
 def get_join_type(join_type: str):
@@ -190,7 +238,7 @@ def handle_comparison(token: Token, tables_array: np.array, columns_array: np.ar
                 columns_array[column_array_index.index(
                     aliases[t.left.value.split('.')[0]] + "_" + t.left.value.split('.')[1])] = 1
         elif isinstance(t, Parenthesis):
-            tables_array, columns_array, steps =\
+            tables_array, columns_array, steps = \
                 handle_comparison(t, tables_array, columns_array, steps, tables, aliases, column_array_index)
     return tables_array, columns_array, steps
 
@@ -214,7 +262,7 @@ def parse_sql_statement(tokens: sqlparse.sql.TokenList, tables: list, column_arr
                         aliases[al[1].strip()] = al[0].strip()
         elif isinstance(token, Where):
             from_statement = False
-            tables_array, columns_array, steps =\
+            tables_array, columns_array, steps = \
                 handle_comparison(token, tables_array, columns_array, steps, tables, aliases, column_array_index)
         elif isinstance(token, Token):
             if token.value.lower() == "select":
