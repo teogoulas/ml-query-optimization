@@ -1,9 +1,13 @@
 import os
 
+import pandas as pd
+
 from models.database import Database
+from models.embeddings_model import EmbeddingsModel
 from models.job_query import JOBQuery
+from utils.downloader import get_glove_vectors
 from utils.parser import generate_output_text, generate_input_text
-from utils.vectorization import bag_of_characters
+from utils.vectorization import text_vectorization
 
 
 def main():
@@ -18,6 +22,7 @@ def main():
             column_array_index.append(table + "_" + column)
 
     # initialize all variables
+    raw_input_texts = []
     input_texts = []
     target_texts = []
     input_characters = set()
@@ -26,37 +31,33 @@ def main():
     for file in files:
         f = open(dataset + "/" + file, "r")
         query = f.read().strip()
+        raw_input_texts.append(query)
         job_query = JOBQuery(query)
         rows = db.explain_query(query)
 
         input_text = generate_input_text(job_query.predicates, job_query.rel_lookup)
         input_texts.append(input_text)
         # add '\t' at start and '\n' at end of text.
-        target_text = '\t' + generate_output_text(rows, job_query.rel_lookup)[:-2] + '\n'
+        target_text = '\t' + generate_output_text(rows, job_query.rel_lookup)[:-1] + '\n'
         target_texts.append(target_text)
 
-        # split character from text and add in respective sets
-        input_characters.update(list(input_text.lower()))
-        target_characters.update(list(target_text.lower()))
+    raw_input_vectorizer, raw_input_corpus = text_vectorization(pd.DataFrame(raw_input_texts,
+                                                                             columns=['input_queries']),
+                                                                ['input_queries'], (1, 3))
 
-    # sort input and target characters
-    input_characters = sorted(list(input_characters))
-    target_characters = sorted(list(target_characters))
-    # get the total length of input and target characters
-    num_en_chars = len(input_characters)
-    num_dec_chars = len(target_characters)
-    # get the maximum length of input and target text.
-    max_input_length = max([len(i) for i in input_texts])
-    max_target_length = max([len(i) for i in target_texts])
-    print("number of encoder characters : ", num_en_chars)
-    print("number of decoder characters : ", num_dec_chars)
-    print("maximum input length : ", max_input_length)
-    print("maximum target length : ", max_target_length)
+    input_vectorizer, input_corpus = text_vectorization(pd.DataFrame(input_texts, columns=['input_queries']),
+                                                        ['input_queries'], (1, 1))
 
-    en_in_data, dec_in_data, dec_tr_data = bag_of_characters(input_texts, target_texts, input_characters, target_characters)
-    print("number of encoder input data : ", len(en_in_data))
-    print("number of decoder input data : ", len(dec_in_data))
-    print("number of decoder training data : ", len(dec_tr_data))
+    output_vectorizer, output_corpus = text_vectorization(pd.DataFrame(target_texts, columns=['output_queries']),
+                                                          ['output_queries'], (1, 3))
+    print("number of encoder words : ", len(input_vectorizer.vocabulary_.keys()))
+    print("number of decoder words : ", len(output_vectorizer.vocabulary_.keys()))
+
+    glove_vectors = get_glove_vectors()
+    input_encoder = EmbeddingsModel()
+    input_encoder.build(input_corpus, glove_vectors)
+    output_encoder = EmbeddingsModel()
+    output_encoder.build(output_corpus, glove_vectors)
 
 
 if __name__ == "__main__":
