@@ -22,4 +22,3 @@ class EmbeddingsModel(object):
         total_examples = self.model.corpus_count
         self.model.build_vocab([list(glove_vectors.index_to_key)], update=True)
         self.model.train(tokens, total_examples=total_examples, epochs=self.epochs)
-        self.model = self.model.wv
