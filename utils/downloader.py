@@ -20,7 +20,7 @@ def get_glove_vectors(glove_path='data/glove/glove.6B.50d.txt', download_glove=F
 
         # extracting the zip file contents
         zipFile = zipfile.ZipFile(BytesIO(req.content))
-        zipFile.extractall('../data/glove')
+        zipFile.extractall('data/glove')
 
     tmp_file, tmp_filePath = tempfile.mkstemp("test_word2vec.txt")
 
