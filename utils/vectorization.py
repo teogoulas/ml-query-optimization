@@ -1,13 +1,20 @@
+import os
 from typing import Tuple, Any
 
 import nltk
 import numpy as np
 import pandas as pd
+from gensim.test.utils import datapath, get_tmpfile
+from gensim.models import KeyedVectors
+from gensim.scripts.glove2word2vec import glove2word2vec
 from sklearn.feature_extraction.text import CountVectorizer, TfidfVectorizer
 from sklearn.pipeline import Pipeline, FeatureUnion
+from tensorflow.python.keras.preprocessing.sequence import pad_sequences
+from tensorflow.python.keras.preprocessing.text import Tokenizer
 
 from models.lemma_tokenizer import LemmaTokenizer
 from models.text_selector import TextSelector
+from utils.constants import EMBEDDING_DIM
 
 
 def bag_of_characters(input_texts: list, target_texts: list, input_characters: list, target_characters: list):
@@ -86,10 +93,50 @@ def text_vectorization(data: pd.DataFrame, features: list, ngram_range: Tuple) -
     feats.fit(data[features])
 
     pipelined_features = [
-        (feature, Pipeline([('selector', TextSelector(key=feature)), ('vectorizer', LemmaTokenizer(stopwords, tags))])) for
+        (feature, Pipeline([('selector', TextSelector(key=feature)), ('vectorizer', LemmaTokenizer(stopwords, tags))]))
+        for
         feature in features]
 
     feats = FeatureUnion(pipelined_features)
     corpus_vec = feats.transform(data[features])
 
     return ct_vec, corpus_vec
+
+
+def pad_tokenizer(x: np.array):
+    # tokenize input
+    tokenizer_obj = Tokenizer()
+    tokenizer_obj.fit_on_texts(x)
+    sequences = tokenizer_obj.texts_to_sequences(x)
+
+    # pad sequences
+    max_length = max([len(s.split()) for s in x])
+    vocab_size = len(tokenizer_obj.word_index) + 1
+    print('Found %s unique tokens.' % vocab_size)
+
+    train_pad = pad_sequences(sequences, maxlen=max_length, padding='post')
+
+    return max_length, tokenizer_obj.word_index, train_pad
+
+
+def get_embedding_matrix(vocab, embeddings_index, embedding_dim=EMBEDDING_DIM):
+    embedding_matrix = np.zeros((len(vocab) + 1, embedding_dim))
+    for word, i in vocab.items():
+        if word in embeddings_index.index_to_key:
+            # words not found in embedding index will be all-zeros.
+            embedding_matrix[i] = embeddings_index[word]
+    return embedding_matrix
+
+
+def load_embeddings_model(filepath: str) -> dict:
+    embeddings_index = {}
+    f = open(os.path.join('', filepath), encoding='utf-8')
+    for i, line in enumerate(f):
+        if i == 0:
+            continue
+        values = line.split()
+        word = values[0]
+        coefs = np.asarray(values[1:])
+        embeddings_index[word] = coefs
+
+    return embeddings_index
