@@ -7,14 +7,14 @@ from sklearn.manifold import TSNE
 from models.embeddings_model import EmbeddingsModel
 
 
-def plot_embeddings(embeddings: dict, samples: int, title: str):
-    vocab_size = len(embeddings)
+def plot_embeddings(encoder: EmbeddingsModel, samples: int, title: str):
+    vocab_size, embedding_size = encoder.model.wv.vectors.shape
     # Sample random words from model dictionary
     random_i = random.sample(range(vocab_size), samples)
-    random_w = [embeddings[i] for i in random_i]
+    random_w = [encoder.model.wv.index_to_key[i] for i in random_i]
 
     # Generate Word2Vec embeddings of each word
-    word_vecs = np.array([embeddings[w] for w in random_w])
+    word_vecs = np.array([encoder.model.wv[w] for w in random_w])
 
     # Apply t-SNE to Word2Vec embeddings, reducing to 2 dims
     tsne = TSNE()

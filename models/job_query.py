@@ -1,33 +1,92 @@
-def parse_aliases(statements: str) -> list:
+from typing import Tuple
+
+
+def parse_aliases(statements: str) -> Tuple[list, list]:
     aliases = []
+    predicates = []
     statements = statements.split(",")
 
     for r in statements:
-        r = r.strip()
-        rel_name = r
-        alias = r
-        if "AS" in r:
-            rel_name, alias = r.split("AS")
-        aliases.append((rel_name.strip(), alias.strip()))
+        r = r.replace("\n", '').strip()
+        if " join " in r:
+            joins = r.split(" join ")
+            for join in joins:
+                join = join.strip()
+                if " on " in join:
+                    preds = join.split(" on ")
+                    for pred in preds:
+                        if " as " in pred:
+                            rel_name, alias = pred.split(" as ")
+                            aliases.append((rel_name.strip(), alias.strip()))
+                        else:
+                            pred_spl = pred.split()
+                            lhs = pred_spl[0]
 
-    return aliases
+                            if lhs[0] == "(":
+                                lhs = lhs[1:]
+
+                            if "." not in lhs:
+                                # BETWEEN
+                                continue
+                            try:
+                                if len(pred_spl) == 2:
+                                    combined = pred_spl[1]
+                                    combined = combined.replace("'", " ")
+                                    combined = combined.split()
+                                    val = [combined[1]]
+                                else:
+                                    val = pred_spl[2:]
+                                if "super" in val:
+                                    import pdb
+                                    pdb.set_trace()
+                            except:
+                                print("Failed parse join statement: {0}".format(r))
+                                continue
+
+                            rel_alias, attr = lhs.split(".")
+
+                            if "=" in pred:
+                                rhs = pred.split()[-1]
+                                if "." in rhs:
+                                    right_rel_alias, right_attr = rhs.split(".")
+                                    predicates.append(
+                                        ("join", (rel_alias, attr, right_rel_alias, right_attr))
+                                    )
+                                    continue
+                elif " as " in join:
+                    rel_name, alias = join.split(" as ")
+                    aliases.append((rel_name.strip(), alias.strip()))
+                else:
+                    aliases.append((join.strip(), join.strip()))
+
+        else:
+            rel_name = r
+            alias = r
+            if " as " in r:
+                rel_name, alias = r.split(" as ")
+            aliases.append((rel_name.strip(), alias.strip()))
+
+    return aliases, predicates
 
 
 class JOBQuery:
     def __init__(self, query):
+        query = query.replace("\n", " ").lower().rstrip()
         self.original_sql = query
 
         if query.endswith(";"):
             query = query[:-1]
 
-        projs = query.split("FROM")[0][7:]
-        from_clause = query.split("FROM")[1].split("WHERE")[0]
-        where = query.split("WHERE")[-1]
+        projs = query.split(" from ")[0][7:]
+        from_clause = query.split(" from ")[1].split(" where ")[0] if " where " in query else query.split(" from ")[1]
+        where = query.split(" where ")[-1] if " where " in query else ''
 
+        self.predicates = []
         self.__original_where = where
         self.__parse_from(from_clause)
         self.__parse_projs(projs)
-        self.__parse_where(where)
+        if len(where) > 0:
+            self.__parse_where(where)
 
         self.rel_lookup = {y: x for (x, y) in self.__relations}
 
@@ -56,7 +115,7 @@ class JOBQuery:
 
     def joins(self, with_attrs=True):
         for (pt, pv) in self.predicates:
-            if pt != "join":
+            if pt != " join ":
                 continue
 
             lh, lha, rh, rha = pv
@@ -80,14 +139,14 @@ class JOBQuery:
         return self.__original_where
 
     def __parse_from(self, from_clause):
-        self.__relations = parse_aliases(from_clause)
+        self.__relations, self.predicates = parse_aliases(from_clause)
 
     def __parse_projs(self, projs):
-        self.projs = parse_aliases(projs)
+        self.projs, predicates = parse_aliases(projs)
+        self.predicates += predicates
 
     def __parse_where(self, where):
-        self.predicates = []
-        preds = where.split("AND")
+        preds = where.split(" and ")
 
         for pred in preds:
             pred_spl = pred.split()
@@ -121,7 +180,9 @@ class JOBQuery:
 
             if "=" in pred:
                 rhs = pred.split()[-1]
-                if "." in rhs:
+                if "'" in rhs:
+                    val = rhs
+                elif "." in rhs:
                     right_rel_alias, right_attr = rhs.split(".")
                     self.predicates.append(
                         ("join", (rel_alias, attr, right_rel_alias, right_attr))

@@ -22,14 +22,18 @@ JOIN_COUNTER = 2
 
 def generate_input_text(predicates: dict, aliases: dict) -> str:
     input_text = ''
-    for (pt, pv) in predicates:
-        lh, lha, rh, rha = pv
-        if pt == 'scan':
-            input_text += "{0} {1}.{2} " \
-                .format(pt, aliases[lh], lha)
-        elif pt == 'join':
-            input_text += "{0} {1}.{2}-{3}.{4} " \
-                .format(pt, aliases[lh], lha, aliases[rh], rha)
+    if len(predicates) == 0:
+        for alias, table in enumerate(aliases):
+            input_text += 'scan {} '.format(table)
+    else:
+        for (pt, pv) in predicates:
+            lh, lha, rh, rha = pv
+            if pt == 'scan':
+                input_text += "{0} {1}.{2} " \
+                    .format(pt, aliases[lh], lha)
+            elif pt == 'join':
+                input_text += "{0} {1}.{2}-{3}.{4} " \
+                    .format(pt, aliases[lh], lha, aliases[rh], rha)
     return input_text[:-1]
 
 
@@ -56,13 +60,16 @@ def generate_output_text(json: dict, aliases: dict) -> str:
                         output_string += "-{0}.{1}".format(str(aliases[cmp[0]]).lower(), str(cmp[1]).lower())
 
             output_string += " "
-        if 'Filter' in json.keys():
+        elif 'Filter' in json.keys():
             output_string += str(json['Node Type']).lower()
             statement = re.sub("[^_0-9a-zA-Z]+", " ", json['Filter']).split()
             if len(statement) > 0:
-                output_string += " table scan {0}".format(statement[0])
+                output_string += " table scan {0}.{1}".format(json['Relation Name'].lower(), statement[0])
 
             output_string += " "
+
+        elif 'scan' in str(json['Node Type']).lower():
+            output_string += " {0} {1} ".format(str(json['Node Type']).lower(), str(json['Relation Name'].lower()))
 
     return output_string
 

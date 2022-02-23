@@ -1,8 +1,10 @@
+import json
 import os
 import sys
 
 import tensorflow as tf
 import pandas as pd
+from gensim.models import Word2Vec
 from sklearn.model_selection import train_test_split
 
 from models.database import Database
@@ -21,11 +23,13 @@ from utils.vectorization import text_vectorization, pad_tokenizer, get_embedding
 def main(pre_trained: bool):
     if pre_trained:
         input_encoder = EmbeddingsModel()
-        input_encoder.model = load_embeddings_model('data/embedding_models/input_encoder.txt')
+        input_encoder.model = Word2Vec.load('data/embedding_models/input_encoder.txt')
         output_encoder = EmbeddingsModel()
-        output_encoder.model = load_embeddings_model('data/embedding_models/output_encoder.txt')
+        output_encoder.model = Word2Vec.load('data/embedding_models/output_encoder.txt')
+        input_df = pd.read_csv('data/training/input_data.csv')
+        output_df = pd.read_csv('data/training/output_data.csv')
     else:
-        dataset = "data/queries"
+        dataset = "data/queries_backup"
         cwd = os.getcwd()
         files = os.listdir(os.path.join(cwd, *dataset.split("/")))
 
@@ -37,32 +41,55 @@ def main(pre_trained: bool):
 
         # initialize all variables
         raw_input_texts = []
+        raw_output_texts = []
         input_texts = []
         target_texts = []
-        input_characters = set()
-        target_characters = set()
 
-        for file in files:
-            f = open(dataset + "/" + file, "r")
-            query = f.read().strip()
-            raw_input_texts.append(query)
-            job_query = JOBQuery(query)
-            rows = db.explain_query(query)
+        with open("sql.log", "w", encoding='utf-8') as logf:
+            for file in files:
+                with open(dataset + "/" + file, "r") as f:
+                    queries = f.read().strip()
+                    for query in queries.split(";"):
+                        if len(query) == 0:
+                            continue
 
-            input_text = generate_input_text(job_query.predicates, job_query.rel_lookup)
-            input_texts.append(input_text)
-            # add '\t' at start and '\n' at end of text.
-            target_text = '\t' + generate_output_text(rows, job_query.rel_lookup)[:-1] + '\n'
-            target_texts.append(target_text)
+                        try:
+                            raw_input_texts.append(query)
+                            job_query = JOBQuery(query)
+                            rows = db.explain_query(query)
+                            raw_output_texts.append(json.dumps(rows))
+
+                            input_text = generate_input_text(job_query.predicates, job_query.rel_lookup)
+                            input_texts.append(input_text)
+                            # add '\t' at start and '\n' at end of text.
+                            target_text = generate_output_text(rows, job_query.rel_lookup)[:-1]
+                            target_texts.append(target_text)
+                        except Exception as e:
+                            logf.write("Failed to execute query {0}: {1}\n".format(str(query), str(e)))
+                            db.conn.close()
+                            db.conn = db.connect()
+                            if len(input_texts) != len(target_texts):
+                                input_texts.pop()
+                            if len(raw_input_texts) != len(raw_output_texts):
+                                raw_input_texts.pop()
+                        finally:
+                            pass
 
         # raw_input_vectorizer, raw_input_corpus = text_vectorization(pd.DataFrame(raw_input_texts,
         #                                                                          columns=['input_queries']),
         #                                                             ['input_queries'], (1, 3))
+        raw_input_df = pd.DataFrame(raw_input_texts, columns=['input_queries'])
+        raw_output_df = pd.DataFrame(raw_output_texts, columns=['output_queries'])
+        raw_input_df.to_csv("data/testing/raw_input_data.csv", encoding='utf-8', sep=',')
+        raw_output_df.to_csv("data/testing/raw_output_data.csv", encoding='utf-8', sep=',')
 
         input_df = pd.DataFrame(input_texts, columns=['input_queries'])
         output_df = pd.DataFrame(target_texts, columns=['output_queries'])
         input_vectorizer, input_corpus = text_vectorization(input_df, ['input_queries'], (1, 1))
         output_vectorizer, output_corpus = text_vectorization(output_df, ['output_queries'], (1, 3))
+
+        input_df.to_csv("data/testing/input_data.csv", encoding='utf-8', sep=',')
+        output_df.to_csv("data/testing/output_data.csv", encoding='utf-8', sep=',')
 
         print("number of encoder words : ", len(input_vectorizer.vocabulary_.keys()))
         print("number of decoder words : ", len(output_vectorizer.vocabulary_.keys()))
@@ -73,13 +100,13 @@ def main(pre_trained: bool):
         output_encoder = EmbeddingsModel()
         output_encoder.build(output_corpus, glove_vectors)
 
-    plot_embeddings(input_encoder.model.mv, 27, "Input Encoder Embeddings")
-    plot_embeddings(output_encoder, 38, "Output Encoder Embeddings")
+        filename = 'data/embedding_models/input_encoder'
+        input_encoder.model.save(filename)
+        filename = 'data/embedding_models/output_encoder'
+        output_encoder.model.save(filename)
 
-    filename = 'data/embedding_models/input_encoder.txt'
-    input_encoder.model.wv.save_word2vec_format(filename, binary=False)
-    filename = 'data/embedding_models/output_encoder.txt'
-    output_encoder.model.wv.save_word2vec_format(filename, binary=False)
+    plot_embeddings(input_encoder.model.wv, 27, "Input Encoder Embeddings")
+    plot_embeddings(output_encoder.model.wv, 38, "Output Encoder Embeddings")
 
     X = input_df['input_queries'].values
     y = output_df['output_queries'].values
