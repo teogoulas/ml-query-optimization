@@ -1,7 +1,7 @@
 from abc import ABC
 
 import tensorflow as tf
-from keras.layers import Embedding, GRU
+from keras.layers import Embedding, LSTM
 from keras.models import Model
 
 from utils.constants import EMBEDDING_DIM
@@ -16,14 +16,20 @@ class Encoder(Model, ABC):
         self.num_embedding = num_embedding
         self.embedding = Embedding(vocab_size, num_embedding, input_length=max_length, weights=[embedding_matrix],
                                    trainable=False)
-        self.gru = GRU(num_hidden, return_sequences=True,
-                       recurrent_initializer='glorot_uniform',
-                       return_state=True)
+        self.lstm = LSTM(num_hidden, return_sequences=True,
+                         recurrent_initializer='glorot_uniform',
+                         return_state=True)
 
-    def call(self, x, hidden):
-        embedded = self.embedding(x)  # converts integer tokens into a dense representation
-        rnn_out, hidden = self.gru(embedded, initial_state=hidden)
-        return rnn_out, hidden
+    def call(self, input_sequence, states):
+        embedded = self.embedding(input_sequence)  # converts integer tokens into a dense representation
+        # print(f"embedded shape = {embedded.shape}")
+        # print(f"hidden shape = {hidden.shape}")
+        output, state_h, state_c = self.lstm(embedded, initial_state=states)
+        # print(f"rnn_out shape = {rnn_out.shape}")
+        # print(f"hidden shape = {hidden.shape}")
+        return output, state_h, state_c
 
-    def init_hidden(self):
-        return tf.zeros(shape=(self.batch_size, self.num_hidden))
+    def init_hidden(self, batch_size):
+        # Return a all 0s initial states
+        return (tf.zeros([self.batch_size, self.num_hidden]),
+                tf.zeros([self.batch_size, self.num_hidden]))
