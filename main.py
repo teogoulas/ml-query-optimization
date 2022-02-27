@@ -2,8 +2,8 @@ import json
 import os
 import sys
 
-import tensorflow as tf
 import pandas as pd
+import tensorflow as tf
 from gensim.models import Word2Vec
 from sklearn.model_selection import train_test_split
 
@@ -17,7 +17,7 @@ from utils.downloader import get_glove_vectors
 from utils.parser import generate_output_text, generate_input_text
 from utils.ploting import plot_embeddings
 from utils.training import train_step, checkpoint
-from utils.vectorization import text_vectorization, pad_tokenizer, get_embedding_matrix, load_embeddings_model
+from utils.vectorization import text_vectorization, pad_tokenizer, get_embedding_matrix
 
 
 def main(pre_trained: bool):
@@ -29,7 +29,7 @@ def main(pre_trained: bool):
         input_df = pd.read_csv('data/training/input_data.csv')
         output_df = pd.read_csv('data/training/output_data.csv')
     else:
-        dataset = "data/queries_backup"
+        dataset = "data/queries"
         cwd = os.getcwd()
         files = os.listdir(os.path.join(cwd, *dataset.split("/")))
 
@@ -54,6 +54,7 @@ def main(pre_trained: bool):
                             continue
 
                         try:
+                            query = query.replace('\n', '').strip()
                             raw_input_texts.append(query)
                             job_query = JOBQuery(query)
                             rows = db.explain_query(query)
@@ -80,16 +81,16 @@ def main(pre_trained: bool):
         #                                                             ['input_queries'], (1, 3))
         raw_input_df = pd.DataFrame(raw_input_texts, columns=['input_queries'])
         raw_output_df = pd.DataFrame(raw_output_texts, columns=['output_queries'])
-        raw_input_df.to_csv("data/testing/raw_input_data.csv", encoding='utf-8', sep=',')
-        raw_output_df.to_csv("data/testing/raw_output_data.csv", encoding='utf-8', sep=',')
+        raw_input_df.to_csv("data/training/raw_input_data.csv", encoding='utf-8', sep=';')
+        raw_output_df.to_csv("data/training/raw_output_data.csv", encoding='utf-8', sep=';')
 
         input_df = pd.DataFrame(input_texts, columns=['input_queries'])
         output_df = pd.DataFrame(target_texts, columns=['output_queries'])
         input_vectorizer, input_corpus = text_vectorization(input_df, ['input_queries'], (1, 1))
         output_vectorizer, output_corpus = text_vectorization(output_df, ['output_queries'], (1, 3))
 
-        input_df.to_csv("data/testing/input_data.csv", encoding='utf-8', sep=',')
-        output_df.to_csv("data/testing/output_data.csv", encoding='utf-8', sep=',')
+        input_df.to_csv("data/training/input_data.csv", encoding='utf-8', sep=',')
+        output_df.to_csv("data/training/output_data.csv", encoding='utf-8', sep=',')
 
         print("number of encoder words : ", len(input_vectorizer.vocabulary_.keys()))
         print("number of decoder words : ", len(output_vectorizer.vocabulary_.keys()))
