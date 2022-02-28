@@ -16,7 +16,7 @@ from utils.constants import BATCH_SIZE, EPOCHS, LOG_EVERY
 from utils.downloader import get_glove_vectors
 from utils.parser import generate_output_text, generate_input_text
 from utils.ploting import plot_embeddings
-from utils.training import train_step, checkpoint
+from utils.training import train_step
 from utils.vectorization import text_vectorization, pad_tokenizer, get_embedding_matrix
 
 
@@ -54,7 +54,7 @@ def main(pre_trained: bool):
                             continue
 
                         try:
-                            query = query.replace('\n', '').strip()
+                            query = query.replace('\n', ' ').strip()
                             raw_input_texts.append(query)
                             job_query = JOBQuery(query)
                             rows = db.explain_query(query)
@@ -124,7 +124,7 @@ def main(pre_trained: bool):
     buffer_size = len(input_tensor)
     dataset = tf.data.Dataset.from_tensor_slices((input_tensor, output_tensor)).shuffle(buffer_size)
     dataset = dataset.batch(BATCH_SIZE)
-    hidden = tf.zeros((16, 256))
+
     steps_per_epoch = len(input_tensor) // BATCH_SIZE
     encoder = Encoder(len(x_vocab) + 1, get_embedding_matrix(x_vocab, input_encoder.model.wv), x_max_length)
     decoder = Decoder(len(y_vocab) + 1, get_embedding_matrix(y_vocab, output_encoder.model.wv), y_max_length)
@@ -137,7 +137,7 @@ def main(pre_trained: bool):
         for idx, (input_tensor, target_tensor) in enumerate(dataset.take(steps_per_epoch)):
             print("idx: {0}, input_tensor shape: {1}, target_tensor shape: {2}".format(idx, input_tensor.shape,
                                                                                        output_tensor.shape))
-            batch_loss = train_step(input_tensor, target_tensor, hidden, encoder, decoder)
+            batch_loss = train_step(input_tensor, target_tensor, enc_hidden, encoder, decoder)
             total_loss += batch_loss
 
             if idx % LOG_EVERY == 0:

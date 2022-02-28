@@ -1,15 +1,13 @@
 import importlib
+import re
+from typing import Iterator, Tuple
 
 import numpy as np
 import sqlparse
-from typing import Iterator, Tuple
-import re
-
 from sqlparse.sql import Statement, TokenList, Identifier, Token, IdentifierList, Where, Comparison, Parenthesis
 
 from models.database import Database
 from models.encoded_node import EncodedNode
-from models.job_query import JOBQuery
 from models.join_type import JoinType
 from models.json_node import InputNode
 from models.scan_type import ScanType
@@ -42,6 +40,19 @@ def generate_output_text(json: dict, aliases: dict) -> str:
     if 'Plans' in json.keys():
         output_string += (str(json['Join Type']).lower() + ' ' if 'Join Type' in json.keys() else '') + str(
             json['Node Type']).lower() + ' '
+        if 'Hash Cond' in json.keys():
+            hash_cond = json['Hash Cond'].replace(" ", "").replace('(', '').replace(')', '')
+            if '=' in hash_cond:
+                preds = hash_cond.split("=")
+                for n, pred in enumerate(preds):
+                    if '.' in pred:
+                        table, column = pred.split('.')
+                        if table in aliases.keys():
+                            table = aliases[table]
+                        output_string += '{0}.{1}'.format(table, column) + ('-' if len(preds) > 1 and n == 0 else ' ')
+                    else:
+                        output_string += pred + ('-' if len(preds) > 1 and n == 0 else ' ')
+
         for plan in json['Plans']:
             output_string += generate_output_text(plan, aliases)
     else:

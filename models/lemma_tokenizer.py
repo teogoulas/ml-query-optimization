@@ -1,7 +1,7 @@
 import re
 
 import nltk
-from nltk import WordNetLemmatizer, word_tokenize
+from nltk import WordNetLemmatizer, word_tokenize, SnowballStemmer
 from nltk.corpus import wordnet
 
 
@@ -34,7 +34,7 @@ def penn_to_wn(tag):
     return wordnet.NOUN
 
 
-def transform(doc: str, stopwords: list, tags: list, wnl: WordNetLemmatizer):
+def transform(doc: str, stopwords: list, tags: list, wnl: WordNetLemmatizer, stemmer: SnowballStemmer):
     doc = doc.lower()
     # pattern for numbers | words of length=2 | punctuations | words of length=1
     pattern = re.compile(r'[0-9]+|\b[\w]{2,2}\b|[%.,_`!"&?/\\\')({~@;:#}+-]+|\b[\w]{1,1}\b')
@@ -57,7 +57,7 @@ def transform(doc: str, stopwords: list, tags: list, wnl: WordNetLemmatizer):
     # lemmatization
     doc = [wnl.lemmatize(t[0], t[1]) for t in doc]
     # uncomment if you want stemming as well
-    # doc = [self.stemmer.stem(x) for x in doc]
+    doc = [stemmer.stem(x) for x in doc]
     return doc
 
 
@@ -65,15 +65,15 @@ class LemmaTokenizer(object):
     def __init__(self, stopwords: list, tags: list):
         self.wnl = WordNetLemmatizer()
         # we define (but not use) a stemming method, uncomment the last line in __call__ to get stemming tooo
-        self.stemmer = nltk.stem.SnowballStemmer('english')
+        self.stemmer = SnowballStemmer('english')
         self.stopwords = stopwords
         self.tags = tags
 
     def __call__(self, doc):
-        return transform(doc, self.stopwords, self.tags, self.wnl)
+        return transform(doc, self.stopwords, self.tags, self.wnl, self.stemmer)
 
     def transform(self, docs):
-        return [transform(doc, self.stopwords, self.tags, self.wnl) for doc in docs]
+        return [transform(doc, self.stopwords, self.tags, self.wnl, self.stemmer) for doc in docs]
 
     def fit(self):
         return self
