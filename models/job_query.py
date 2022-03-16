@@ -69,6 +69,31 @@ def parse_aliases(statements: str) -> Tuple[list, list]:
     return aliases, predicates
 
 
+def parse_trailing_operations(clause: str):
+    group_by = ''
+    having = ''
+    sorting = ''
+    parsed_clause = clause
+    if " group by " in clause:
+        parsed_clause, group_by = clause.split(" group by ")
+
+    if " having " in clause:
+        if " having " in group_by:
+            group_by, having = group_by.split(" having ")
+        else:
+            parsed_clause, having = clause.split(" having ")
+
+    if " order by " in clause:
+        if " order by " in having:
+            having, sorting = having.split(" order by ")
+        elif " order by " in group_by:
+            group_by, sorting = group_by.split(" order by ")
+        else:
+            parsed_clause, sorting = clause.split(" order by ")
+
+    return parsed_clause, group_by, having, sorting
+
+
 class JOBQuery:
     def __init__(self, query):
         query = query.replace("\n", " ").lower().rstrip()
@@ -78,8 +103,12 @@ class JOBQuery:
             query = query[:-1]
 
         projs = query.split(" from ")[0][7:]
+
         from_clause = query.split(" from ")[1].split(" where ")[0] if " where " in query else query.split(" from ")[1]
+        from_clause, group_by_clause, having_clause, sorting_clause = parse_trailing_operations(from_clause)
+
         where = query.split(" where ")[-1] if " where " in query else ''
+        where, group_by_clause, having_clause, sorting_clause = parse_trailing_operations(where)
 
         self.predicates = []
         self.__original_where = where

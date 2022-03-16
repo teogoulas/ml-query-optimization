@@ -1,13 +1,9 @@
 import os
-from typing import Tuple, Any
+from typing import Tuple
 
-import nltk
 import numpy as np
 import pandas as pd
-from gensim.test.utils import datapath, get_tmpfile
-from gensim.models import KeyedVectors
-from gensim.scripts.glove2word2vec import glove2word2vec
-from sklearn.feature_extraction.text import CountVectorizer, TfidfVectorizer
+from sklearn.feature_extraction.text import CountVectorizer
 from sklearn.pipeline import Pipeline, FeatureUnion
 from tensorflow.python.keras.preprocessing.sequence import pad_sequences
 from tensorflow.python.keras.preprocessing.text import Tokenizer
@@ -75,16 +71,16 @@ def text_vectorization(data: pd.DataFrame, features: list, ngram_range: Tuple) -
         :return: tf-idf vector and tf-idf vectorizer
     """
 
-    nltk.download('averaged_perceptron_tagger')
-    nltk.download('punkt')
-    nltk.download('omw-1.4')
-    nltk.download('wordnet')
-    nltk.download('stopwords')
-    stopwords = nltk.corpus.stopwords.words('english')
+    # nltk.download('averaged_perceptron_tagger')
+    # nltk.download('punkt')
+    # nltk.download('omw-1.4')
+    # nltk.download('wordnet')
+    # nltk.download('stopwords')
+    # stopwords = nltk.corpus.stopwords.words('english')
 
-    tags = ['NN', 'NNS', 'NNP', 'NNPS', 'JJ', 'JJS', 'JJR']
+    # tags = ['NN', 'NNS', 'NNP', 'NNPS', 'JJ', 'JJS', 'JJR']
 
-    ct_vec = CountVectorizer(ngram_range=ngram_range, analyzer='word', tokenizer=LemmaTokenizer(stopwords, tags))
+    ct_vec = CountVectorizer(ngram_range=ngram_range, analyzer='word', tokenizer=LemmaTokenizer())
 
     pipelined_features = [(feature, Pipeline([('selector', TextSelector(key=feature)), ('vectorizer', ct_vec)])) for
                           feature in features]
@@ -93,7 +89,7 @@ def text_vectorization(data: pd.DataFrame, features: list, ngram_range: Tuple) -
     feats.fit(data[features])
 
     pipelined_features = [
-        (feature, Pipeline([('selector', TextSelector(key=feature)), ('vectorizer', LemmaTokenizer(stopwords, tags))]))
+        (feature, Pipeline([('selector', TextSelector(key=feature)), ('vectorizer', LemmaTokenizer())]))
         for
         feature in features]
 
