@@ -85,6 +85,98 @@ def generate_output_text(json: dict, aliases: dict) -> str:
     return output_string
 
 
+def generate_operation_text(json: dict, operators: dict, aliases: dict) -> str:
+    output_string = ''
+
+    if len(operators) > 0:
+        for (operator, predicates) in operators:
+            output, _, _ = parse_plans(json, operator, predicates, aliases)
+            output_string += output + ' '
+    else:
+        # alias = ''
+        # for key in json.keys():
+        #     if json[key] in aliases.keys():
+        #         alias = aliases[json[key]]
+        #         break
+        output_string = parse_simple_plans(json, aliases) + ' '
+
+    return output_string
+
+
+def parse_simple_plans(json: dict, aliases: dict) -> str:
+    output_string = ''
+    node_type = str(json['Node Type']).lower().replace(' ', '_')
+    if 'Plans' in json.keys():
+        for plan in json['Plans']:
+            out = parse_simple_plans(plan, aliases)
+            output_string = out + ('-' if len(out) > 0 and len(output_string) > 0 else '') + output_string
+    else:
+        if 'hash' in node_type or 'scan' in node_type:
+            # alias = ''
+            # for key in json.keys():
+            #     if json[key] in aliases.keys():
+            #         alias = aliases[json[key]]
+            #         break
+            output_string = node_type  # + (f"~{alias}" if len(alias) > 0 else '')
+
+    return output_string
+
+
+def parse_plans(json: dict, operator: str, predicates: list, aliases: dict) -> Tuple[str, bool, bool]:
+    output_string = ''
+    force_stop = False
+    g_found = False
+    node_type = str(json['Node Type']).lower().replace(' ', '_')
+    if 'Plans' in json.keys():
+        dirty_output = ''
+        for plan in json['Plans']:
+            output, found, terminate = parse_plans(plan, operator, predicates, aliases)
+            if terminate:
+                force_stop = True
+                output_string = (
+                                    node_type + '-'
+                                    if operator == 'scan'
+                                       and ('hash' in node_type or 'scan' in node_type)
+                                       and 'Join Type' not in json.keys()
+                                    else ''
+                                ) + output
+            if found:
+                g_found = True
+                if not terminate:
+                    if operator == 'join' and 'Join Type' not in json.keys():
+                        force_stop = True
+                        output_string = output
+                    elif operator == 'scan' and 'Join Type' in json.keys():
+                        force_stop = True
+                        output_string = output + (
+                            '-' if len(output) > 0 and len(dirty_output) > 0 else '') + dirty_output
+            else:
+                if not g_found:
+                    for key in json.keys():
+                        if predicates[1] in str(json[key]) and predicates[3] in str(json[key]) and key != 'Plans':
+                            g_found = True
+                            break
+                dirty_output = output + ('-' if len(output) > 0 and len(dirty_output) > 0 else '') + dirty_output
+        if force_stop:
+            return output_string, g_found, force_stop
+        else:
+            if g_found:
+                output_string = (dirty_output + '-' if len(dirty_output) > 0 else '') + node_type
+            else:
+                output_string = node_type + ('-' + dirty_output if len(dirty_output) > 0 else '')
+            return output_string, g_found, force_stop
+
+    else:
+        alias = ''
+        for key in json.keys():
+            if predicates[1] in str(json[key]) and predicates[3] in str(json[key]):
+                g_found = True
+            if json[key] in aliases.keys():
+                alias = aliases[json[key]]
+        output_string = str(json['Node Type']).lower().replace(' ', '_')  # + (f"~{alias}" if len(alias) > 0 else '')
+        return output_string, g_found, g_found and operator == 'scan'
+
+
 def get_join_type(join_type: str):
     if join_type == 'Hash Join':
         return JoinType.HASH_JOIN

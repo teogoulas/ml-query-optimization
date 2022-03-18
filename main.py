@@ -14,13 +14,13 @@ from models.encoder import Encoder
 from models.job_query import JOBQuery
 from utils.constants import BATCH_SIZE, EPOCHS, LOG_EVERY
 from utils.downloader import get_glove_vectors
-from utils.parser import generate_output_text, generate_input_text
+from utils.parser import generate_output_text, generate_input_text, generate_operation_text
 from utils.ploting import plot_embeddings
 from utils.training import train_step
 from utils.vectorization import text_vectorization, pad_tokenizer, get_embedding_matrix
 
 
-def main(pre_trained: bool):
+def main(pre_trained: bool, raw_data_creation: bool, operators_impl: bool):
     if pre_trained:
         input_encoder = EmbeddingsModel()
         input_encoder.model = Word2Vec.load('data/embedding_models/input_encoder.txt')
@@ -63,7 +63,8 @@ def main(pre_trained: bool):
                             input_text = generate_input_text(job_query.predicates, job_query.rel_lookup)
                             input_texts.append(input_text)
                             # add '\t' at start and '\n' at end of text.
-                            target_text = generate_output_text(rows, job_query.rel_lookup)[:-1]
+                            target_text = generate_operation_text(rows, job_query.predicates, job_query.rel_lookup)[:-1] if operators_impl \
+                                else generate_output_text(rows, job_query.rel_lookup)[:-1]
                             target_texts.append(target_text)
                         except Exception as e:
                             logf.write("Failed to execute query {0}: {1}\n".format(str(query), str(e)))
@@ -79,19 +80,19 @@ def main(pre_trained: bool):
         # raw_input_vectorizer, raw_input_corpus = text_vectorization(pd.DataFrame(raw_input_texts,
         #                                                                          columns=['input_queries']),
         #                                                             ['input_queries'], (1, 3))
-        raw_input_df = pd.DataFrame(raw_input_texts, columns=['input_queries'])
-        raw_output_df = pd.DataFrame(raw_output_texts, columns=['output_queries'])
-        raw_input_df.to_csv("data/training/raw_input_data.csv", encoding='utf-8', sep=';')
-        raw_output_df.to_csv("data/training/raw_output_data.csv", encoding='utf-8', sep=';')
+        if raw_data_creation:
+            raw_input_df = pd.DataFrame(raw_input_texts, columns=['input_queries'])
+            raw_output_df = pd.DataFrame(raw_output_texts, columns=['output_queries'])
+            raw_input_df.to_csv("data/training/raw_input_data.csv", encoding='utf-8', sep=';')
+            raw_output_df.to_csv("data/training/raw_output_data.csv", encoding='utf-8', sep=';')
 
         input_df = pd.DataFrame(input_texts, columns=['input_queries'])
         output_df = pd.DataFrame(target_texts, columns=['output_queries'])
+        input_df.to_csv(f"data/training/{'operators_impl_' if operators_impl else ''}input_data_v2.csv", encoding='utf-8', sep=',')
+        output_df.to_csv(f"data/training/{'operators_impl_' if operators_impl else ''}output_data_v2.csv", encoding='utf-8', sep=',')
+
         input_vectorizer, input_corpus = text_vectorization(input_df, ['input_queries'], (1, 1))
         output_vectorizer, output_corpus = text_vectorization(output_df, ['output_queries'], (1, 3))
-
-        input_df.to_csv("data/training/input_data.csv", encoding='utf-8', sep=',')
-        output_df.to_csv("data/training/output_data.csv", encoding='utf-8', sep=',')
-
         print("number of encoder words : ", len(input_vectorizer.vocabulary_.keys()))
         print("number of decoder words : ", len(output_vectorizer.vocabulary_.keys()))
 
@@ -152,5 +153,17 @@ def main(pre_trained: bool):
 
 if __name__ == "__main__":
     args = sys.argv[1:]
-    pretrained = len(args) > 0 and args[0] == 'pretrained'
-    main(pretrained)
+    pretrained = False
+    raw_data = False
+    operators = False
+    if len(args) > 2:
+        pretrained = args[0] == 'pretrained'
+        raw_data = args[1] == 'raw_data'
+        operators = args[1] == 'operators'
+    elif len(args) > 1:
+        pretrained = args[0] == 'pretrained'
+        raw_data = args[1] == 'raw_data'
+        operators = args[1] == 'operators'
+    else:
+        pretrained = len(args) > 0 and args[0] == 'pretrained'
+    main(pretrained, raw_data, operators)
