@@ -85,20 +85,20 @@ def generate_output_text(json: dict, aliases: dict) -> str:
     return output_string
 
 
-def generate_operation_text(json: dict, operators: dict, aliases: dict) -> str:
+def generate_operation_text(json: dict, operators: dict, aliases: dict, simplyfied=False) -> str:
     output_string = ''
 
     if len(operators) > 0:
         for (operator, predicates) in operators:
-            output, _, _ = parse_plans(json, operator, predicates, aliases)
-            output_string += output + ' '
+            results = simplified_parse_plans(json, operator, predicates) if simplyfied else parse_plans(json, operator, predicates, aliases)
+            output_string += results[0] + ' '
     else:
         # alias = ''
         # for key in json.keys():
         #     if json[key] in aliases.keys():
         #         alias = aliases[json[key]]
         #         break
-        output_string = parse_simple_plans(json, aliases) + ' '
+        output_string = (simplified_parse_simple_plans(json, aliases)[0] if simplyfied else parse_simple_plans(json, aliases)) + ' '
 
     return output_string
 
@@ -175,6 +175,48 @@ def parse_plans(json: dict, operator: str, predicates: list, aliases: dict) -> T
                 alias = aliases[json[key]]
         output_string = str(json['Node Type']).lower().replace(' ', '_')  # + (f"~{alias}" if len(alias) > 0 else '')
         return output_string, g_found, g_found and operator == 'scan'
+
+
+def simplified_parse_plans(json: dict, operator: str, predicates: list) -> Tuple[str, bool]:
+    output_string = ''
+    node_type = str(json['Node Type']).lower().replace(' ', '_')
+    found = False
+    if 'Plans' in json.keys():
+        for plan in json['Plans']:
+            output, found = simplified_parse_plans(plan, operator, predicates)
+            if found:
+                output_string = output
+                break
+        if not found:
+            for key in json.keys():
+                if key != 'Plans' and predicates[1] in str(json[key]) and predicates[3] in str(json[key]):
+                    output_string = node_type
+                    found = True
+                    break
+        return output_string, found
+    else:
+        for key in json.keys():
+            if predicates[1] in str(json[key]) and predicates[3] in str(json[key]):
+                found = True
+                break
+        return node_type, found
+
+
+def simplified_parse_simple_plans(json: dict, aliases: dict) -> Tuple[str, bool]:
+    output_string = ''
+    node_type = str(json['Node Type']).lower().replace(' ', '_')
+    found = False
+    if 'Plans' in json.keys():
+        for plan in json['Plans']:
+            out, found = simplified_parse_simple_plans(plan, aliases)
+            if found:
+                output_string = out
+                break
+        return output_string, found
+    else:
+        if 'hash' in node_type or 'scan' in node_type:
+            found = True
+        return node_type, found
 
 
 def get_join_type(join_type: str):

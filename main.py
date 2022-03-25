@@ -63,7 +63,7 @@ def main(pre_trained: bool, raw_data_creation: bool, operators_impl: bool):
                             input_text = generate_input_text(job_query.predicates, job_query.rel_lookup)
                             input_texts.append(input_text)
                             # add '\t' at start and '\n' at end of text.
-                            target_text = generate_operation_text(rows, job_query.predicates, job_query.rel_lookup)[:-1] if operators_impl \
+                            target_text = generate_operation_text(rows, job_query.predicates, job_query.rel_lookup, True)[:-1] if operators_impl \
                                 else generate_output_text(rows, job_query.rel_lookup)[:-1]
                             target_texts.append(target_text)
                         except Exception as e:
@@ -88,8 +88,8 @@ def main(pre_trained: bool, raw_data_creation: bool, operators_impl: bool):
 
         input_df = pd.DataFrame(input_texts, columns=['input_queries'])
         output_df = pd.DataFrame(target_texts, columns=['output_queries'])
-        input_df.to_csv(f"data/training/{'operators_impl_' if operators_impl else ''}input_data_v2.csv", encoding='utf-8', sep=',')
-        output_df.to_csv(f"data/training/{'operators_impl_' if operators_impl else ''}output_data_v2.csv", encoding='utf-8', sep=',')
+        input_df.to_csv(f"data/training/{'operators_impl_' if operators_impl else ''}input_data_v3.csv", encoding='utf-8', sep=',')
+        output_df.to_csv(f"data/training/{'operators_impl_' if operators_impl else ''}output_data_v3.csv", encoding='utf-8', sep=',')
 
         input_vectorizer, input_corpus = text_vectorization(input_df, ['input_queries'], (1, 1))
         output_vectorizer, output_corpus = text_vectorization(output_df, ['output_queries'], (1, 3))
