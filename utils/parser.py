@@ -26,10 +26,10 @@ def generate_input_text(predicates: dict, aliases: dict) -> str:
     else:
         for (pt, pv) in predicates:
             lh, lha, rh, rha = pv
-            if pt == 'scan':
+            if 'scan' in pt:
                 input_text += "{0} {1}.{2} " \
                     .format(pt, aliases[lh], lha)
-            elif pt == 'join':
+            elif 'join' in pt:
                 input_text += "{0} {1}.{2}-{3}.{4} " \
                     .format(pt, aliases[lh], lha, aliases[rh], rha)
     return input_text[:-1]
@@ -85,12 +85,86 @@ def generate_output_text(json: dict, aliases: dict) -> str:
     return output_string
 
 
+def generate_order_text(json: dict, operators: dict) -> str:
+    if len(operators) > 0:
+        output_string, _ = ordered_parse_plans(json, operators)
+    else:
+        output_string = simplified_parse_simple_plans(json)[0]
+
+    return output_string
+
+
+def ordered_parse_plans(json: dict, operators: dict) -> Tuple[str, str]:
+    output_string = ''
+    dirty_output = ''
+    if 'Plans' in json.keys():
+        for plan in json['Plans']:
+            output, dirty = ordered_parse_plans(plan, operators)
+            if len(dirty) > 0:
+                dirty_output += (' ' if len(dirty) > 0 and len(dirty_output) > 0 else '') + dirty
+            output_string += (' ' if len(output) > 0 and len(output_string) > 0 else '') + output
+
+        if len(dirty_output) > 0:
+            new_dirty = ''
+            for dirty in dirty_output.split():
+                if ("scan" in dirty and is_scan(json)) or ("join" in dirty and is_join(json)):
+                    output_string += (' ' if len(output_string) > 0 else '') + dirty
+                else:
+                    new_dirty += dirty + ' '
+            dirty_output = '' if len(new_dirty) == 0 else new_dirty[:-1]
+
+        output, dirty, found = find_operator(json, operators)
+        if len(dirty) > 0:
+            dirty_output += (' ' if len(dirty) > 0 and len(dirty_output) > 0 else '') + dirty
+        if found:
+            output_string += (' ' if len(output) > 0 and len(output_string) > 0 else '') + output
+    else:
+        output_string, dirty_output, found = find_operator(json, operators)
+    return output_string, dirty_output
+
+
+def find_operator(json: dict, operators: dict):
+    output_string = ''
+    dirty_output = ''
+    found = False
+    for key in json.keys():
+        val = json[key]
+        if key != 'Plans' and type(val) == str and len(val) > 0 and len(val.split()) > 1:
+            for (operator, predicates) in operators:
+                if predicates[1] in str(val) and predicates[3] in str(val) and (predicates[0] in str(val) or predicates[2] in str(val)):
+                    if ("join" in operator and is_join(json)) or ("scan" in operator and is_scan(json)):
+                        output_string = operator
+                    else:
+                        dirty_output = operator
+                    found = True
+                    break
+        if found:
+            break
+    return output_string, dirty_output, found
+
+
+def is_join(json: dict) -> bool:
+    if "join" in str(json['Node Type']).lower():
+        return True
+    else:
+        for key in json.keys():
+            if "join" in key.lower():
+                return True
+    return False
+
+
+def is_scan(json: dict) -> bool:
+    return "scan" in str(json['Node Type']).lower()
+
+
 def generate_operation_text(json: dict, operators: dict, aliases: dict, simplyfied=False) -> str:
     output_string = ''
 
     if len(operators) > 0:
         for (operator, predicates) in operators:
-            results = simplified_parse_plans(json, operator, predicates) if simplyfied else parse_plans(json, operator, predicates, aliases)
+            results = simplified_parse_plans(json, operator, predicates) if simplyfied else parse_plans(json, operator,
+                                                                                                        predicates,
+                                                                                                        aliases)
             output_string += results[0] + ' '
     else:
         # alias = ''
@@ -98,7 +172,8 @@ def generate_operation_text(json: dict, operators: dict, aliases: dict, simplyfi
         #     if json[key] in aliases.keys():
         #         alias = aliases[json[key]]
         #         break
-        output_string = (simplified_parse_simple_plans(json, aliases)[0] if simplyfied else parse_simple_plans(json, aliases)) + ' '
+        output_string = (simplified_parse_simple_plans(json)[0] if simplyfied else parse_simple_plans(json,
+                                                                                                      aliases)) + ' '
 
     return output_string
 
@@ -202,13 +277,13 @@ def simplified_parse_plans(json: dict, operator: str, predicates: list) -> Tuple
         return node_type, found
 
 
-def simplified_parse_simple_plans(json: dict, aliases: dict) -> Tuple[str, bool]:
+def simplified_parse_simple_plans(json: dict) -> Tuple[str, bool]:
     output_string = ''
     node_type = str(json['Node Type']).lower().replace(' ', '_')
     found = False
     if 'Plans' in json.keys():
         for plan in json['Plans']:
-            out, found = simplified_parse_simple_plans(plan, aliases)
+            out, found = simplified_parse_simple_plans(plan)
             if found:
                 output_string = out
                 break

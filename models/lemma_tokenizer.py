@@ -39,7 +39,7 @@ def unicode_to_ascii(s):
 
 
 def transform(doc: str):
-    doc = doc.lower()
+    doc = unicode_to_ascii(doc.lower().strip())
     # pattern for numbers | words of length=2 | punctuations | words of length=1
     # pattern = re.compile(r'[0-9]+|[%.,_`!"&?/\\\')({~@;:#}+-]+|\b[\w]{1,1}\b')
     # doc = pattern.sub(' ', doc)

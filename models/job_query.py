@@ -1,7 +1,7 @@
 from typing import Tuple
 
 
-def parse_aliases(statements: str) -> Tuple[list, list]:
+def parse_aliases(statements: str, join_count: int) -> Tuple[list, list, int]:
     aliases = []
     predicates = []
     statements = statements.split(",")
@@ -50,8 +50,9 @@ def parse_aliases(statements: str) -> Tuple[list, list]:
                                 if "." in rhs:
                                     right_rel_alias, right_attr = rhs.split(".")
                                     predicates.append(
-                                        ("join", (rel_alias, attr, right_rel_alias, right_attr))
+                                        (f"join_{join_count}", (rel_alias, attr, right_rel_alias, right_attr))
                                     )
+                                    join_count += 1
                                     continue
                 elif " as " in join:
                     rel_name, alias = join.split(" as ")
@@ -66,7 +67,7 @@ def parse_aliases(statements: str) -> Tuple[list, list]:
                 rel_name, alias = r.split(" as ")
             aliases.append((rel_name.strip(), alias.strip()))
 
-    return aliases, predicates
+    return aliases, predicates, join_count
 
 
 def parse_trailing_operations(clause: str):
@@ -110,6 +111,8 @@ class JOBQuery:
         where = query.split(" where ")[-1] if " where " in query else ''
         where, group_by_clause, having_clause, sorting_clause = parse_trailing_operations(where)
 
+        self.join_count = 1
+        self.scan_count = 1
         self.predicates = []
         self.__original_where = where
         self.__parse_from(from_clause)
@@ -168,10 +171,10 @@ class JOBQuery:
         return self.__original_where
 
     def __parse_from(self, from_clause):
-        self.__relations, self.predicates = parse_aliases(from_clause)
+        self.__relations, self.predicates, self.join_count = parse_aliases(from_clause, self.join_count)
 
     def __parse_projs(self, projs):
-        self.projs, predicates = parse_aliases(projs)
+        self.projs, predicates, self.join_count = parse_aliases(projs, self.join_count)
         self.predicates += predicates
 
     def __parse_where(self, where):
@@ -214,7 +217,9 @@ class JOBQuery:
                 elif "." in rhs:
                     right_rel_alias, right_attr = rhs.split(".")
                     self.predicates.append(
-                        ("join", (rel_alias, attr, right_rel_alias, right_attr))
+                        (f"join_{self.join_count}", (rel_alias, attr, right_rel_alias, right_attr))
                     )
+                    self.join_count += 1
                     continue
-            self.predicates.append(("scan", (rel_alias, attr, cmp_op, val)))
+            self.predicates.append((f"scan_{self.scan_count}", (rel_alias, attr, cmp_op, val[0])))
+            self.scan_count += 1

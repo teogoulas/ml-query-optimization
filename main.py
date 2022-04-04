@@ -14,13 +14,13 @@ from models.encoder import Encoder
 from models.job_query import JOBQuery
 from utils.constants import BATCH_SIZE, EPOCHS, LOG_EVERY
 from utils.downloader import get_glove_vectors
-from utils.parser import generate_output_text, generate_input_text, generate_operation_text
+from utils.parser import generate_output_text, generate_input_text, generate_operation_text, generate_order_text
 from utils.ploting import plot_embeddings
 from utils.training import train_step
 from utils.vectorization import text_vectorization, pad_tokenizer, get_embedding_matrix
 
 
-def main(pre_trained: bool, raw_data_creation: bool, operators_impl: bool):
+def main(pre_trained: bool, raw_data_creation: bool, operators_impl: bool, ordered: bool):
     if pre_trained:
         input_encoder = EmbeddingsModel()
         input_encoder.model = Word2Vec.load('data/embedding_models/input_encoder.txt')
@@ -63,8 +63,12 @@ def main(pre_trained: bool, raw_data_creation: bool, operators_impl: bool):
                             input_text = generate_input_text(job_query.predicates, job_query.rel_lookup)
                             input_texts.append(input_text)
                             # add '\t' at start and '\n' at end of text.
-                            target_text = generate_operation_text(rows, job_query.predicates, job_query.rel_lookup, True)[:-1] if operators_impl \
-                                else generate_output_text(rows, job_query.rel_lookup)[:-1]
+                            if operators_impl:
+                                target_text = generate_operation_text(rows, job_query.predicates, job_query.rel_lookup, True)[:-1]
+                            elif ordered:
+                                target_text = generate_order_text(rows, job_query.predicates)
+                            else:
+                                target_text = generate_output_text(rows, job_query.rel_lookup)[:-1]
                             target_texts.append(target_text)
                         except Exception as e:
                             logf.write("Failed to execute query {0}: {1}\n".format(str(query), str(e)))
@@ -88,8 +92,8 @@ def main(pre_trained: bool, raw_data_creation: bool, operators_impl: bool):
 
         input_df = pd.DataFrame(input_texts, columns=['input_queries'])
         output_df = pd.DataFrame(target_texts, columns=['output_queries'])
-        input_df.to_csv(f"data/training/{'operators_impl_' if operators_impl else ''}input_data_v3.csv", encoding='utf-8', sep=',')
-        output_df.to_csv(f"data/training/{'operators_impl_' if operators_impl else ''}output_data_v3.csv", encoding='utf-8', sep=',')
+        input_df.to_csv(f"data/training/{'operators_impl_' if operators_impl else 'ordered_' if ordered else ''}input_data_v3.csv", encoding='utf-8', sep=',')
+        output_df.to_csv(f"data/training/{'operators_impl_' if operators_impl else 'ordered_' if ordered else ''}output_data_v3.csv", encoding='utf-8', sep=',')
 
         input_vectorizer, input_corpus = text_vectorization(input_df, ['input_queries'], (1, 1))
         output_vectorizer, output_corpus = text_vectorization(output_df, ['output_queries'], (1, 3))
@@ -156,14 +160,12 @@ if __name__ == "__main__":
     pretrained = False
     raw_data = False
     operators = False
-    if len(args) > 2:
+    ordered = False
+    if len(args) > 1:
         pretrained = args[0] == 'pretrained'
         raw_data = args[1] == 'raw_data'
         operators = args[1] == 'operators'
-    elif len(args) > 1:
-        pretrained = args[0] == 'pretrained'
-        raw_data = args[1] == 'raw_data'
-        operators = args[1] == 'operators'
+        ordered = args[1] == 'ordered'
     else:
         pretrained = len(args) > 0 and args[0] == 'pretrained'
-    main(pretrained, raw_data, operators)
+    main(pretrained, raw_data, operators, ordered)
