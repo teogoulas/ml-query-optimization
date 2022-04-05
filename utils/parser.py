@@ -131,7 +131,8 @@ def find_operator(json: dict, operators: dict):
         val = json[key]
         if key != 'Plans' and type(val) == str and len(val) > 0 and len(val.split()) > 1:
             for (operator, predicates) in operators:
-                if predicates[1] in str(val) and predicates[3] in str(val) and (predicates[0] in str(val) or predicates[2] in str(val)):
+                if predicates[1] in str(val) and predicates[3] in str(val) and (
+                        predicates[0] in str(val) or predicates[2] in str(val)):
                     if ("join" in operator and is_join(json)) or ("scan" in operator and is_scan(json)):
                         output_string = operator
                     else:
@@ -252,29 +253,48 @@ def parse_plans(json: dict, operator: str, predicates: list, aliases: dict) -> T
         return output_string, g_found, g_found and operator == 'scan'
 
 
-def simplified_parse_plans(json: dict, operator: str, predicates: list) -> Tuple[str, bool]:
+def simplified_parse_plans(json: dict, operator: str, predicates: list) -> Tuple[str, str, bool]:
     output_string = ''
+    dirty_output = ''
     node_type = str(json['Node Type']).lower().replace(' ', '_')
     found = False
     if 'Plans' in json.keys():
         for plan in json['Plans']:
-            output, found = simplified_parse_plans(plan, operator, predicates)
-            if found:
+            output, dirty, found = simplified_parse_plans(plan, operator, predicates)
+            if len(output) > 0:
                 output_string = output
+                found = True
                 break
+            elif len(dirty) > 0:
+                dirty_output = dirty
+        if len(dirty_output) > 0:
+            if ("scan" in dirty_output and is_scan(json)) or ("join" in dirty_output and is_join(json)):
+                output_string = dirty_output
+                dirty_output = ''
+                found = True
         if not found:
             for key in json.keys():
-                if key != 'Plans' and predicates[1] in str(json[key]) and predicates[3] in str(json[key]):
+                val = json[key]
+                if key != 'Plans' and type(val) == str and len(val) > 0 and len(val.split()) > 1 and \
+                        predicates[1] in str(val) and predicates[3] in str(json[key]) \
+                        and (predicates[0] in str(val) or predicates[2] in str(val)):
                     output_string = node_type
                     found = True
                     break
-        return output_string, found
+        return output_string, dirty_output, found
     else:
         for key in json.keys():
-            if predicates[1] in str(json[key]) and predicates[3] in str(json[key]):
+            val = json[key]
+            if type(val) == str and len(val) > 0 and len(val.split()) > 1 and \
+                    predicates[1] in str(val) and predicates[3] in str(json[key]) \
+                    and (predicates[0] in str(val) or predicates[2] in str(val)):
+                if ("join" in operator and is_join(json)) or ("scan" in operator and is_scan(json)):
+                    output_string = node_type
+                else:
+                    dirty_output = node_type
                 found = True
                 break
-        return node_type, found
+        return output_string, dirty_output, found
 
 
 def simplified_parse_simple_plans(json: dict) -> Tuple[str, bool]:

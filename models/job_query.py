@@ -1,7 +1,7 @@
 from typing import Tuple
 
 
-def parse_aliases(statements: str, join_count: int) -> Tuple[list, list, int]:
+def parse_aliases(statements: str, join_count: int, ordered: bool) -> Tuple[list, list, int]:
     aliases = []
     predicates = []
     statements = statements.split(",")
@@ -50,7 +50,7 @@ def parse_aliases(statements: str, join_count: int) -> Tuple[list, list, int]:
                                 if "." in rhs:
                                     right_rel_alias, right_attr = rhs.split(".")
                                     predicates.append(
-                                        (f"join_{join_count}", (rel_alias, attr, right_rel_alias, right_attr))
+                                        (f"join{('_' + str(join_count)) if ordered else ''}", (rel_alias, attr, right_rel_alias, right_attr))
                                     )
                                     join_count += 1
                                     continue
@@ -96,9 +96,10 @@ def parse_trailing_operations(clause: str):
 
 
 class JOBQuery:
-    def __init__(self, query):
+    def __init__(self, query, ordered=False):
         query = query.replace("\n", " ").lower().rstrip()
         self.original_sql = query
+        self.ordered = ordered
 
         if query.endswith(";"):
             query = query[:-1]
@@ -171,10 +172,10 @@ class JOBQuery:
         return self.__original_where
 
     def __parse_from(self, from_clause):
-        self.__relations, self.predicates, self.join_count = parse_aliases(from_clause, self.join_count)
+        self.__relations, self.predicates, self.join_count = parse_aliases(from_clause, self.join_count, self.ordered)
 
     def __parse_projs(self, projs):
-        self.projs, predicates, self.join_count = parse_aliases(projs, self.join_count)
+        self.projs, predicates, self.join_count = parse_aliases(projs, self.join_count, self.ordered)
         self.predicates += predicates
 
     def __parse_where(self, where):
@@ -217,9 +218,9 @@ class JOBQuery:
                 elif "." in rhs:
                     right_rel_alias, right_attr = rhs.split(".")
                     self.predicates.append(
-                        (f"join_{self.join_count}", (rel_alias, attr, right_rel_alias, right_attr))
+                        (f"join{('_' + str(self.join_count)) if self.ordered else ''}", (rel_alias, attr, right_rel_alias, right_attr))
                     )
                     self.join_count += 1
                     continue
-            self.predicates.append((f"scan_{self.scan_count}", (rel_alias, attr, cmp_op, val[0])))
+            self.predicates.append((f"scan{('_' + str(self.scan_count)) if self.ordered else ''}", (rel_alias, attr, cmp_op, val[0])))
             self.scan_count += 1

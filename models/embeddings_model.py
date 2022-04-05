@@ -14,7 +14,7 @@ class EmbeddingsModel(object):
         self.cbow_mean = cbow_mean
         self.alpha = alpha
         self.sample = sample
-        self.model = Word2Vec(vector_size=vector_size, window=window, min_count=min_count,
+        self.model = Word2Vec(vector_size=vector_size, window=window, min_count=min_count, null_word=0,
                               workers=workers, seed=seed, sg=sg, cbow_mean=cbow_mean, alpha=alpha, sample=sample)
 
     def build(self, tokens: list, glove_vectors: KeyedVectors):

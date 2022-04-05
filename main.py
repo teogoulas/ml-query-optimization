@@ -56,7 +56,7 @@ def main(pre_trained: bool, raw_data_creation: bool, operators_impl: bool, order
                         try:
                             query = query.replace('\n', ' ').strip()
                             raw_input_texts.append(query)
-                            job_query = JOBQuery(query)
+                            job_query = JOBQuery(query, ordered)
                             rows = db.explain_query(query)
                             raw_output_texts.append(json.dumps(rows))
 
@@ -72,6 +72,7 @@ def main(pre_trained: bool, raw_data_creation: bool, operators_impl: bool, order
                             target_texts.append(target_text)
                         except Exception as e:
                             logf.write("Failed to execute query {0}: {1}\n".format(str(query), str(e)))
+                            print(str(e))
                             db.conn.close()
                             db.conn = db.connect()
                             if len(input_texts) != len(target_texts):
