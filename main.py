@@ -59,9 +59,10 @@ def main(pre_trained: bool, raw_data_creation: bool, operators_impl: bool, order
                             job_query = JOBQuery(query, ordered)
                             rows = db.explain_query(query)
                             raw_output_texts.append(json.dumps(rows))
+                            if len(job_query.predicates) <= 1 and ordered:
+                                continue
 
                             input_text = generate_input_text(job_query.predicates, job_query.rel_lookup)
-                            input_texts.append(input_text)
                             # add '\t' at start and '\n' at end of text.
                             if operators_impl:
                                 target_text = generate_operation_text(rows, job_query.predicates, job_query.rel_lookup, True)[:-1]
@@ -69,7 +70,12 @@ def main(pre_trained: bool, raw_data_creation: bool, operators_impl: bool, order
                                 target_text = generate_order_text(rows, job_query.predicates)
                             else:
                                 target_text = generate_output_text(rows, job_query.rel_lookup)[:-1]
-                            target_texts.append(target_text)
+
+                            if len(input_text.strip()) > 0 and len(target_text.strip()) > 0 and (len(target_text.strip().split()) == len(job_query.predicates) or (len(job_query.predicates) == 0 and len(target_text.strip().split()) == 1)):
+                                input_texts.append(input_text)
+                                target_texts.append(target_text)
+                            else:
+                                print(f"Something went wrong for query: {query}")
                         except Exception as e:
                             logf.write("Failed to execute query {0}: {1}\n".format(str(query), str(e)))
                             print(str(e))
